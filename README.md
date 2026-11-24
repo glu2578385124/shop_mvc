@@ -9,7 +9,7 @@
 | JDK | Java 8 | 项目编译版本、Maven 使用的 JDK、Tomcat 的 JRE 均使用 1.8 |
 | Maven | 3.9.9 | 通过根目录 `pom.xml` 导入依赖 |
 | Tomcat | 8.5.73 | 当前代码使用 Spring 5 和 `javax.servlet`，切换容器版本时需核对兼容性 |
-| HTTP 端口 | 8081 | 当前机器的 8080 被 Steam 占用，因此改用 8081 |
+| HTTP 端口 | 8081 | 当前机器的 8080 被占用，因此改用 8081 |
 | JMX 端口 | 默认 1099 | IDEA 用于连接 Tomcat 的管理端口，与浏览器访问的 HTTP 端口不同 |
 | 应用上下文 | `/` | 当前首页链接写为 `/hello`，按根路径部署可直接使用 |
 | 文件编码 | UTF-8 | Java、XML、JSP 文件及响应编码应保持一致 |
