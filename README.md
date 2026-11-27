@@ -46,7 +46,9 @@ mvn package
 
 ## Redis 和 Druid 配置
 
-看板会每秒请求一次 `dashboard/list`。页面能打开，并不代表 Redis、Druid 已连接或指标数据已准备好。
+看板会在上一次 `dashboard/list` 请求结束后等待一秒再发起下一次请求，避免慢查询时请求重叠。页面能打开，并不代表 Redis、Druid 已连接或指标数据已准备好。
+
+Avatica 1.12 默认 HTTP 客户端会为每个 JDBC 连接创建连接池。本项目通过 `DruidHelper` 的 `httpclient_impl` 属性使用 `DruidHttpClient`，每次 HTTP 请求都关闭流和连接，并设置 3 秒连接超时、10 秒读取超时。修改此配置后应重新构建并部署；若已有大量旧连接堆积，需重启 Tomcat 清理旧连接。
 
 ### Redis
 
@@ -56,6 +58,8 @@ mvn package
 - `src/main/java/com/cn/mvc/shopmvc/utils/RedisUtil.java`：默认 `host`、`port` 和连接超时配置；独立运行其中的 `main` 方法时，也需检查其连接地址。
 
 只修改 `RedisUtil` 的默认地址，不能覆盖业务类显式传入的地址。使用实际服务器的主机名或 IP；若保留 `hadoop-13`，需保证本机 DNS 或 hosts 能正确解析，并能访问 6379 端口。当前连接代码未传入 Redis 密码，有认证要求时需调整连接配置。
+
+`RedisUtil` 的封装方法会为每次操作借用并归还 Jedis 连接，不能将单个 Jedis 实例共享给多个请求线程。若直接调用 `getClient()`，调用方需使用 `try-with-resources` 关闭连接并归还连接池。
 
 当前读取的数据包括：
 
@@ -103,7 +107,19 @@ jdbc:avatica:remote:url=http://hadoop-13:8888/druid/v2/sql/avatica/
 | 看板入口 | `/hello` | 由 `HelloController` 返回看板视图 |
 | 指标接口 | `/dashboard/list` | 页面通过 POST 请求获取 JSON |
 
-`WEB-INF` 下的页面不能通过浏览器直接访问，应通过控制器转发。看板 JSP 还引用了外部 `http://echarts.baidu.com/gallery/vendors/echarts/map/js/china.js`；地图不显示时，需检查浏览器 Network 中该脚本是否加载成功。
+`WEB-INF` 下的页面不能通过浏览器直接访问，应通过控制器转发。地图脚本使用项目自带的 `/res/js/china.js`，地图不显示时，检查浏览器 Network 中该本地脚本是否加载成功。
+
+## 数据范围与验证
+
+访客数据日期仍为 `20191016`，与当前 Redis Hash 中的实际日期字段一致；切换为当天日期前，应先准备对应日期的数据。Druid 数据使用各 SQL 中的时间范围，可能与 Redis 示例数据日期不同。
+
+周曲线按固定日期轴对齐，无记录的日期补 0；上周没有记录时返回 7 个零值。小时销售额查询 Druid `CURRENT_DATE` 对应的一整天，并返回 24 个小时点。Top4 销售额保留 SQL 返回的排名顺序。
+
+Java 回归测试通过 `mvn test` 执行；页面轮询的防重叠测试需要 Node.js：
+
+```shell
+node src/test/js/dashboard-polling.test.js
+```
 
 ## 常见问题
 

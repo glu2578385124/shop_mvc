@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Redis工具类
@@ -17,11 +18,10 @@ public class RedisUtil implements Serializable {
 
     private static final long serialVersionUID = -8924898642817729421L;
 
-    public static JedisPool jedisPool;
+    public static volatile JedisPool jedisPool;
     private static String host = "hadoop-13";
     private static int port = 6379;
     private static int timeout = 10 * 1000;
-    private static Jedis client;
 
 
     private RedisUtil() {
@@ -54,11 +54,15 @@ public class RedisUtil implements Serializable {
         return new RedisUtil();
     }
 
+    /** Borrow a connection; direct callers must close it to return it to the pool. */
     public Jedis getClient() {
-        if (client == null || !client.isConnected()) {
-            this.client = jedisPool.getResource();
+        return jedisPool.getResource();
+    }
+
+    private <T> T execute(Function<Jedis, T> command) {
+        try (Jedis connection = getClient()) {
+            return command.apply(connection);
         }
-        return client;
     }
 
     public void close() {
@@ -73,7 +77,7 @@ public class RedisUtil implements Serializable {
      * @param key
      */
     public void delete(String key) {
-        getClient().del(key);
+        execute(jedis -> jedis.del(key));
     }
 
     /**
@@ -82,7 +86,7 @@ public class RedisUtil implements Serializable {
      * @param keys
      */
     public void delete(Collection<String> keys) {
-        getClient().del((String[]) keys.toArray());
+        execute(jedis -> jedis.del((String[]) keys.toArray()));
     }
 
     /**
@@ -92,7 +96,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public byte[] dump(String key) {
-        return getClient().dump(key);
+        return execute(jedis -> jedis.dump(key));
     }
 
     /**
@@ -102,7 +106,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public boolean hasKey(String key) {
-        return getClient().exists(key);
+        return execute(jedis -> jedis.exists(key));
     }
 
     /**
@@ -113,7 +117,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long expire(String key, int timeout) {
-        return getClient().expire(key, timeout);
+        return execute(jedis -> jedis.expire(key, timeout));
     }
 
     /**
@@ -124,7 +128,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long expireAt(String key, long milliseconds) {
-        return getClient().expireAt(key, milliseconds);
+        return execute(jedis -> jedis.expireAt(key, milliseconds));
     }
 
     /**
@@ -134,7 +138,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Set<String> keys(String pattern) {
-        return getClient().keys(pattern);
+        return execute(jedis -> jedis.keys(pattern));
     }
 
     /**
@@ -145,7 +149,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long move(String key, int dbIndex) {
-        return getClient().move(key, dbIndex);
+        return execute(jedis -> jedis.move(key, dbIndex));
     }
 
     /**
@@ -155,7 +159,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long persist(String key) {
-        return getClient().persist(key);
+        return execute(jedis -> jedis.persist(key));
     }
 
     /**
@@ -164,7 +168,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public String randomKey() {
-        return getClient().randomKey();
+        return execute(jedis -> jedis.randomKey());
     }
 
     /**
@@ -174,7 +178,7 @@ public class RedisUtil implements Serializable {
      * @param newKey
      */
     public void rename(String oldKey, String newKey) {
-        getClient().rename(oldKey, newKey);
+        execute(jedis -> jedis.rename(oldKey, newKey));
     }
 
     /**
@@ -184,7 +188,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public String type(String key) {
-        return getClient().type(key);
+        return execute(jedis -> jedis.type(key));
     }
 
     /** -------------------string相关操作--------------------- */
@@ -195,7 +199,7 @@ public class RedisUtil implements Serializable {
      * @param value
      */
     public void set(String key, String value) {
-        getClient().set(key, value);
+        execute(jedis -> jedis.set(key, value));
     }
 
     /**
@@ -204,7 +208,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public String get(String key) {
-        return getClient().get(key);
+        return execute(jedis -> jedis.get(key));
     }
 
     /**
@@ -215,7 +219,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public String getRange(String key, long start, long end) {
-        return getClient().getrange(key, start, end);
+        return execute(jedis -> jedis.getrange(key, start, end));
     }
 
     /**
@@ -224,7 +228,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Set<String> getKeys(String keyPattern) {
-        return getClient().keys(keyPattern);
+        return execute(jedis -> jedis.keys(keyPattern));
     }
 
     /**
@@ -233,7 +237,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public List<String> getValues(Collection<String> keys) {
-        return getClient().mget(keys.toArray(new String[] {}));
+        return execute(jedis -> jedis.mget(keys.toArray(new String[] {})));
     }
 
     /**
@@ -243,7 +247,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public String getAndSet(String key, String value) {
-        return getClient().getSet(key, value);
+        return execute(jedis -> jedis.getSet(key, value));
     }
 
     /**
@@ -253,7 +257,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Boolean getBit(String key, long offset) {
-        return getClient().getbit(key, offset);
+        return execute(jedis -> jedis.getbit(key, offset));
     }
 
     /**
@@ -262,7 +266,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public List<String> multiGet(Collection<String> keys) {
-        return getClient().mget((String[]) keys.toArray());
+        return execute(jedis -> jedis.mget((String[]) keys.toArray()));
     }
 
     /**
@@ -274,7 +278,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public boolean setBit(String key, long offset, boolean value) {
-        return getClient().setbit(key, offset, value);
+        return execute(jedis -> jedis.setbit(key, offset, value));
     }
 
     /**
@@ -284,7 +288,7 @@ public class RedisUtil implements Serializable {
      * @param timeout 过期时间
      */
     public void setEx(String key, String value, long timeout) {
-        getClient().psetex(key, timeout, value);
+        execute(jedis -> jedis.psetex(key, timeout, value));
     }
 
     /**
@@ -294,7 +298,7 @@ public class RedisUtil implements Serializable {
      * @param offset 从指定位置开始覆写
      */
     public void setRange(String key, String value, long offset) {
-        getClient().setrange(key, offset, value);
+        execute(jedis -> jedis.setrange(key, offset, value));
     }
 
     /**
@@ -303,7 +307,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long size(String key) {
-        return getClient().hlen(key);
+        return execute(jedis -> jedis.hlen(key));
     }
 
     /**
@@ -312,7 +316,7 @@ public class RedisUtil implements Serializable {
      */
     public void multiSet(Map<String, String> maps) {
         maps.forEach((k, v) -> {
-            getClient().set(k, v);
+            execute(jedis -> jedis.set(k, v));
         });
     }
 
@@ -323,7 +327,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long incrBy(String key, long increment) {
-        return getClient().incrBy(key, increment);
+        return execute(jedis -> jedis.incrBy(key, increment));
     }
     /**
      * 自增（浮点）
@@ -333,7 +337,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Double incrByFloat(String key, double increment) {
-        return getClient().incrByFloat(key, increment);
+        return execute(jedis -> jedis.incrByFloat(key, increment));
     }
 
     /**
@@ -344,7 +348,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long append(String key, String value) {
-        return getClient().append(key, value);
+        return execute(jedis -> jedis.append(key, value));
     }
 
     /** -------------------hash相关操作------------------------- */
@@ -357,7 +361,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Object hGet(String key, String field) {
-        return getClient().hget(key, field);
+        return execute(jedis -> jedis.hget(key, field));
     }
 
     /**
@@ -367,7 +371,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Long sCard(String key) {
-        return getClient().scard(key);
+        return execute(jedis -> jedis.scard(key));
     }
 
     /**
@@ -377,7 +381,7 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public Map<String, String> hGetAll(String key) {
-        return getClient().hgetAll(key);
+        return execute(jedis -> jedis.hgetAll(key));
     }
 
     /**
@@ -388,15 +392,15 @@ public class RedisUtil implements Serializable {
      * @return
      */
     public List<String> hMultiGet(String key, Collection<Object> fields) {
-        return getClient().hmget(key, (String[]) fields.toArray());
+        return execute(jedis -> jedis.hmget(key, (String[]) fields.toArray()));
     }
 
     public void hPut(String key, String hashKey, String value) {
-        getClient().hset(key, hashKey, value);
+        execute(jedis -> jedis.hset(key, hashKey, value));
     }
 
     public void hPutAll(String key, Map<String, String> maps) {
-        getClient().hmset(key, maps);
+        execute(jedis -> jedis.hmset(key, maps));
     }
 
     public static void main(String[] args) {

@@ -35,6 +35,14 @@ public class DashboardServiceImpl implements DashboardService {
         System.out.println("DashboardServiceImpl构造方法被调用");
     }
 
+    static LinkedHashMap<String, Long> alignDailyValues(List<WeekBean> days, Map<String, Long> rows) {
+        LinkedHashMap<String, Long> result = new LinkedHashMap<>();
+        for (WeekBean day : days) {
+            result.put(day.getWeek(), rows.getOrDefault(day.getDay(), 0L));
+        }
+        return result;
+    }
+
     //PV、UV、IP指标
     public List<Map<String, String>> dau() {
         List<Map<String, String>> userChartDataes = new ArrayList<Map<String, String>>();
@@ -138,7 +146,7 @@ public class DashboardServiceImpl implements DashboardService {
             put("16", 0d); put("17", 0d); put("18", 0d); put("19", 0d); put("20", 0d); put("21", 0d); put("22", 0d); put("23", 0d);
         }};
 
-        String sql = "SELECT EXTRACT(HOUR FROM \"__time\") AS \"curHour\",SUM(\"totalMoney\") AS \"curHourSales\" FROM \"dws_od\" WHERE \"__time\" >= CURRENT_TIMESTAMP - INTERVAL '1' HOUR GROUP BY EXTRACT(HOUR FROM \"__time\")";
+        String sql = "SELECT EXTRACT(HOUR FROM \"__time\") AS \"curHour\",SUM(\"totalMoney\") AS \"curHourSales\" FROM \"dws_od\" WHERE \"__time\" >= CURRENT_DATE AND \"__time\" < CURRENT_DATE + INTERVAL '1' DAY GROUP BY EXTRACT(HOUR FROM \"__time\")";
 
         // 实例化Druid JDBC连接
         DruidHelper helper = new DruidHelper();
@@ -227,14 +235,8 @@ public class DashboardServiceImpl implements DashboardService {
                 "ORDER BY 1 ASC";
         // 实例化Druid JDBC连接
         DruidHelper helper = new DruidHelper();
-        // 上周1-7天的时间
-        LinkedList<String> lwd = new LinkedList<String>();
-        // 上周1-7天的数据
-        LinkedList<Long> lw = new LinkedList<Long>();
-        // 本周1-7天的时间
-        LinkedList<String> twd = new LinkedList<String>();
-        // 本周1-7天的数据
-        LinkedList<Long> tw = new LinkedList<Long>();
+        Map<String, Long> lastWeekRows = new HashMap<>();
+        Map<String, Long> thisWeekRows = new HashMap<>();
 
         Connection connection = null;
         Statement st = null;
@@ -244,36 +246,13 @@ public class DashboardServiceImpl implements DashboardService {
             st = connection.createStatement();
             rs = st.executeQuery(lwSql);
             while (rs.next()) {
-                String day = rs.getString(1);
-                long val = rs.getLong(2);
-                for (int i = 0; i < lwDay.size(); i++) {
-                    WeekBean wb = lwDay.get(i);
-                    lwd.add(wb.getWeek());
-                    if (day.equals(wb.getDay())) {
-                        lw.add(val);
-                    } else {
-                        lw.add(wb.getValue());
-                    }
-                }
+                lastWeekRows.put(rs.getString(1), rs.getLong(2));
             }
+            rs.close();
             rs = st.executeQuery(twSql);
             while (rs.next()) {
-                String day = rs.getString(1);
-                long val = rs.getLong(2);
-                for (int i = 0; i < twDay.size(); i++) {
-                    WeekBean wb = twDay.get(i);
-                    twd.add(wb.getWeek());
-                    if (day.equals(wb.getDay())) {
-                        tw.add(val);
-                    } else {
-                        tw.add(wb.getValue());
-                    }
-                }
+                thisWeekRows.put(rs.getString(1), rs.getLong(2));
             }
-            result.put("lw", lw);
-            result.put("lwd", lwd);
-            result.put("tw", tw);
-            result.put("twd", twd);
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -282,6 +261,12 @@ public class DashboardServiceImpl implements DashboardService {
             }
 
         }
+        LinkedHashMap<String, Long> lastWeek = alignDailyValues(lwDay, lastWeekRows);
+        LinkedHashMap<String, Long> thisWeek = alignDailyValues(twDay, thisWeekRows);
+        result.put("lw", new ArrayList<>(lastWeek.values()));
+        result.put("lwd", new ArrayList<>(lastWeek.keySet()));
+        result.put("tw", new ArrayList<>(thisWeek.values()));
+        result.put("twd", new ArrayList<>(thisWeek.keySet()));
         return result;
     }
 
@@ -449,7 +434,7 @@ public class DashboardServiceImpl implements DashboardService {
         // 按时间从过去到现在进行排序（本周）
         twDay.stream().sorted((o1, o2) -> o2.getSort().compareTo(o1.getSort()));
 
-        LinkedHashMap<String, Long> result = new LinkedHashMap<String, Long>();
+        Map<String, Long> rows = new HashMap<>();
         String sql = "SELECT SUBSTR(CAST(\"__time\" AS VARCHAR),1,10) AS d,sum(\"count\") FROM \"dws_od\" where \"__time\" >= CURRENT_TIMESTAMP - INTERVAL '7' DAY GROUP BY SUBSTR(CAST(\"__time\" AS VARCHAR),1,10)";
         // 实例化Druid JDBC连接
         DruidHelper helper = new DruidHelper();
@@ -461,28 +446,19 @@ public class DashboardServiceImpl implements DashboardService {
             st = connection.createStatement();
             rs = st.executeQuery(sql);
             while (rs.next()) {
-                String day = rs.getString(1);
-                long val = rs.getLong(2);
-                for (int i = 0; i < twDay.size(); i++) {
-                    WeekBean wb = twDay.get(i);
-                    if (day.equals(wb.getDay())) {
-                        result.put(wb.getWeek(), val);
-                    } else {
-                        result.put(wb.getWeek(), 0L);
-                    }
-                }
+                rows.put(rs.getString(1), rs.getLong(2));
             }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
             helper.close(connection, st, rs);
         }
-        return result;
+        return alignDailyValues(twDay, rows);
     }
 
 
     public Map<Integer, Double> top4AreaSale() {
-        Map<Integer, Double> result = new HashMap<Integer, Double>();
+        Map<Integer, Double> result = new LinkedHashMap<Integer, Double>();
         String sql = "SELECT areaId, SUM(\"totalMoney\") as ta FROM \"dws_od\" WHERE \"__time\" >= CURRENT_TIMESTAMP - INTERVAL '1' DAY GROUP BY \"areaId\" ORDER BY ta DESC limit 4";
         // 实例化Druid JDBC连接
         DruidHelper helper = new DruidHelper();

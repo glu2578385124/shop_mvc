@@ -8,7 +8,7 @@
 	<link rel="stylesheet" href="${pageContext.request.contextPath}/res/css/main.css">
 	<script src="${pageContext.request.contextPath}/res/js/jquery-1.11.0.min.js"></script>
 	<script src="${pageContext.request.contextPath}/res/js/echarts.js"></script>
-	<script src="http://echarts.baidu.com/gallery/vendors/echarts/map/js/china.js"></script>
+	<script src="${pageContext.request.contextPath}/res/js/china.js"></script>
 	<script src="${pageContext.request.contextPath}/res/js/main.js"></script>
 </head>
 <body>
@@ -106,10 +106,13 @@
       	window.addEventListener('resize', function () {
         	setFont();
       	})
+		var queryPending = false;
 		function query() {
+			if (queryPending) return;
+			queryPending = true;
 			$.ajax({
 		        type: 'POST',
-		        url: 'dashboard/list',
+		        url: '${pageContext.request.contextPath}/dashboard/list',
 		        data: null,
 		        dataType: 'json',
 		        success: function(data){
@@ -124,12 +127,16 @@
 		          	sales(data.sales);
 		          	orderChart(data.chinaMap)
 		        },
-		        error: function(data){
+		        error: function(xhr){
+		            console.error('Dashboard request failed', xhr.status);
+		        },
+		        complete: function(){
+		            queryPending = false;
+		            setTimeout(query, 1000);
 		        }
 		    });
 		}
-      	var timeInterval = setInterval(function(){query()},1000)
-      	//query();
+		query();
   </script>
 </body>
 </html>

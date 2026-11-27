@@ -12,6 +12,10 @@ public class DruidHelper {
     private Properties conf = new Properties();
     private Connection connection;
 
+    public DruidHelper() {
+        conf.setProperty("httpclient_impl", DruidHttpClient.class.getName());
+    }
+
     static {
         try {
             Class.forName("org.apache.calcite.avatica.remote.Driver");

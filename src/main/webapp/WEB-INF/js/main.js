@@ -148,7 +148,7 @@ function channelChart(dataes) {
 	        fontSize: 14
 	      },
 	      right: '8%',
-	      data:['本周', '本月']
+	      data:['本周', '上周']
 	    },
 	    grid: {
 	      left: '8.5%',
@@ -212,7 +212,7 @@ function channelChart(dataes) {
 	        data: dataes.week
 	      },
 	      {
-	        name:'本月',
+	        name:'上周',
 	        type:'line',
 	        symbolSize: 8,
 	        smooth: true,
